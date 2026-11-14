@@ -86,6 +86,12 @@ export interface LevelSpec {
   crystals: CrystalSpec[];
   exit: { x: number; y: number };
   minCrystals: number;
+  minOrbits?: number;
+  control?: {
+    thrust?: number;
+    gravityWhileThrust?: number;
+    tangentThrust?: number;
+  };
   par: number;
 }
 
