@@ -95,7 +95,8 @@ export function Screen({ title, back = true, children, scroll = true, world }: {
           accessibilityLabel="Volver"
           onPress={() => {
             sfx('ui');
-            router.canGoBack() ? router.back() : router.replace('/');
+            if (router.canGoBack()) router.back();
+            else router.replace('/');
           }}
           style={st.back}>
           <ArrowLeft size={20} color={C.text} />
