@@ -22,7 +22,7 @@ export const PR = 7; // radio de la partícula
 export const EXIT_R = 34;
 export const MAGNET_R = 230;
 const MAXV = 440;
-const THRUST = 240;
+const THRUST = 330;
 const SLOW_SCALE = 0.35;
 
 export interface AbilityCfg {
@@ -82,6 +82,7 @@ export type SimEvent = {
     | 'nearmiss'
     | 'portal'
     | 'zone'
+    | 'escape'
     | 'ability'
     | 'denied'
     | 'won'
@@ -204,6 +205,8 @@ export interface Sim {
   lastHit: string;
   camX: number;
   stars: number;
+  orbitTravel: number;
+  lastOrbitAngle: number | null;
 }
 
 /* ------------------------------ utilidades ------------------------------ */
@@ -342,6 +345,8 @@ export function createSim(level: LevelSpec, opts: SimOpts): Sim {
     lastHit: '',
     camX: 0,
     stars: 0,
+    orbitTravel: 0,
+    lastOrbitAngle: null,
   };
 }
 
@@ -574,6 +579,8 @@ function outDir(s: Sim) {
 function playerStep(s: Sim, dt: number) {
   const p = s.p;
   const lvl = s.level;
+  const previousCenter = s.center;
+  const control = lvl.control;
   let ax = 0;
   let ay = 0;
   let best: RWell | null = null;
@@ -597,6 +604,10 @@ function playerStep(s: Sim, dt: number) {
       a *= k * k * (3 - 2 * k);
     }
     const sg = w.kind === 'inverse' ? -1 : 1;
+    if (sg > 0 && s.holding) {
+      const gravityScale = control?.gravityWhileThrust ?? 0.82;
+      a *= 1 - s.thrust * (1 - gravityScale);
+    }
     ax += (sg * a * dx) / d;
     ay += (sg * a * dy) / d;
     if (sg > 0 && a > bestA) {
@@ -612,6 +623,23 @@ function playerStep(s: Sim, dt: number) {
     scale = 0.55;
   }
   s.center = best;
+
+  if (best) {
+    const angle = Math.atan2(p.y - best.y, p.x - best.x);
+    if (s.lastOrbitAngle !== null) {
+      let da = angle - s.lastOrbitAngle;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      s.orbitTravel += Math.abs(da);
+    }
+    s.lastOrbitAngle = angle;
+  } else s.lastOrbitAngle = null;
+
+  if (previousCenter && !best && Math.hypot(p.vx, p.vy) > 120) {
+    ring(s, p.x, p.y, '#35E0FF', 105, 0.7);
+    burst(s, p.x, p.y, ['#35E0FF', '#FFFFFF', '#9B5CFF'], 18, 150);
+    s.events.push({ type: 'escape' });
+  }
 
   // impulso radial progresivo
   const target = s.holding ? 1 : 0;
@@ -632,9 +660,20 @@ function playerStep(s: Sim, dt: number) {
   }
   s.thrustDir.x = tx;
   s.thrustDir.y = ty;
-  const T = THRUST * s.thrust * scale;
+  const T = (control?.thrust ?? THRUST) * s.thrust * scale;
   ax += tx * T;
   ay += ty * T;
+  if (center && s.thrust > 0.02) {
+    let qx = -ty;
+    let qy = tx;
+    if (p.vx * qx + p.vy * qy < 0) {
+      qx = -qx;
+      qy = -qy;
+    }
+    const tangent = (control?.tangentThrust ?? 45) * s.thrust;
+    ax += qx * tangent;
+    ay += qy * tangent;
+  }
 
   p.vx += ax * dt;
   p.vy += ay * dt;
@@ -749,7 +788,8 @@ function playerStep(s: Sim, dt: number) {
   const ex = lvl.exit;
   const de = Math.hypot(p.x - ex.x, p.y - ex.y);
   if (de < EXIT_R) {
-    if (s.crystals >= lvl.minCrystals) {
+    const orbitReady = s.orbitTravel >= (lvl.minOrbits ?? 0) * Math.PI * 2;
+    if (s.crystals >= lvl.minCrystals && orbitReady) {
       s.mode = 'won';
       s.wonT = 0;
       s.stars = rateStars(s);
@@ -760,8 +800,9 @@ function playerStep(s: Sim, dt: number) {
       return;
     } else if (s.exitMsgCd <= 0) {
       s.exitMsgCd = 1.6;
-      floater(s, ex.x, ex.y - 30, `FALTAN ${lvl.minCrystals - s.crystals} CRISTALES`, '#FF3B5C');
-      s.events.push({ type: 'locked', text: `${lvl.minCrystals - s.crystals}` });
+      const text = !orbitReady ? 'CALIBRA LA ÓRBITA' : `FALTAN ${lvl.minCrystals - s.crystals} CRISTALES`;
+      floater(s, ex.x, ex.y - 30, text, '#FF3B5C');
+      s.events.push({ type: 'locked', text: !orbitReady ? 'orbit' : `${lvl.minCrystals - s.crystals}` });
     }
   }
 
@@ -885,7 +926,7 @@ function isSafe(s: Sim, x: number, y: number, m: number) {
   return true;
 }
 
-export function useAbility(s: Sim, id: AbilityId): boolean {
+export function activateAbility(s: Sim, id: AbilityId): boolean {
   const a = s.abil[id];
   if (!a || s.mode !== 'play' || a.charges <= 0 || a.cd > 0) return false;
   const p = s.p;
@@ -984,7 +1025,10 @@ export function updateCamera(s: Sim, visW: number, dt: number, snap = false) {
   const w = s.level.width;
   let target: number;
   if (w <= visW) target = (w - visW) / 2;
-  else target = Math.max(0, Math.min(w - visW, s.p.x - visW * 0.38));
+  else {
+    const speedLead = Math.max(-visW * 0.08, Math.min(visW * 0.12, s.p.vx * 0.16));
+    target = Math.max(0, Math.min(w - visW, s.p.x - visW * 0.38 + speedLead));
+  }
   if (snap) s.camX = target;
   else s.camX += (target - s.camX) * (1 - Math.exp(-6 * dt));
 }
