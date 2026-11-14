@@ -11,7 +11,7 @@ const WIDTH = Number(process.env.W || 160);
 let lastWhy = '';
 let lastPos = '';
 function solve(level: (typeof ALL_LEVELS)[number]) {
-  const lv = { ...level, minCrystals: 0 };
+  const lv = process.env.FULL === '1' ? level : { ...level, minCrystals: 0 };
   const s0 = createSim(lv, { lives: 1, startShield: false, abilities: {}, fx });
   s0.invuln = 0;
   let beam = [{ s: s0, sc: 0 }];
@@ -41,7 +41,7 @@ function solve(level: (typeof ALL_LEVELS)[number]) {
         if (seen.has(key)) continue;
         seen.add(key);
         const out = c.p.x < 0 || c.p.x > level.width || c.p.y < 0 || c.p.y > 500;
-        next.push({ s: c, sc: -d - (out ? 500 : 0) + Math.random() * 60 });
+        next.push({ s: c, sc: -d - (out ? 500 : 0) + c.crystals * 120 + Math.random() * 60 });
       }
     }
     if (!next.length) return { ok: false, t: depth * 0.1, why: 'todos mueren a los ' + (depth * 0.1).toFixed(1) + 's: ' + lastWhy + ' en ' + lastPos };

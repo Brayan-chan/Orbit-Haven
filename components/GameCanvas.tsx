@@ -21,7 +21,7 @@ export function GameCanvas({ sim, frame, width, height, accent, skin, trail, shi
   const skinGlow = skin.colors[1];
   const alive = s.mode === 'play' || s.mode === 'won';
   const tr = s.trail;
-  const chunks: JSX.Element[] = [];
+  const chunks: React.ReactElement[] = [];
   if (tr.length > 3) {
     const n = 5;
     const per = Math.ceil(tr.length / n);
@@ -36,7 +36,7 @@ export function GameCanvas({ sim, frame, width, height, accent, skin, trail, shi
       chunks.push(<Polyline key={`b${c}`} points={str} stroke={col} strokeWidth={1.5 + k * 3.5} strokeOpacity={0.35 + k * 0.6} fill="none" strokeLinecap="round" />);
     }
   }
-  const unlocked = s.crystals >= lvl.minCrystals;
+  const unlocked = s.crystals >= lvl.minCrystals && s.orbitTravel >= (lvl.minOrbits ?? 0) * Math.PI * 2;
   const ec = unlocked ? '#35E0FF' : '#FF3B5C';
   const ex = lvl.exit;
   const blink = s.invuln > 0 && Math.floor(clk * 14) % 2 === 0;
@@ -164,18 +164,19 @@ export function GameCanvas({ sim, frame, width, height, accent, skin, trail, shi
             <Circle r={EXIT_R * 0.7} fill="none" stroke={ec} strokeWidth={2.5} strokeDasharray="8 8" />
           </G>
           <Circle r={EXIT_R * 0.38} fill="#031024" stroke="#FFFFFF" strokeOpacity={0.8} strokeWidth={1.5} />
-          {!unlocked && <SvgText x={0} y={5} fill="#FFFFFF" fontSize={13} fontWeight="bold" textAnchor="middle">{`${s.crystals}/${lvl.minCrystals}`}</SvgText>}
+          {!unlocked && <SvgText x={0} y={5} fill="#FFFFFF" fontSize={11} fontWeight="bold" textAnchor="middle">{lvl.minOrbits && s.orbitTravel < lvl.minOrbits * Math.PI * 2 ? 'ÓRBITA' : `${s.crystals}/${lvl.minCrystals}`}</SvgText>}
           <Polyline points="-58,-12 -48,0 -58,12" fill="none" stroke={ec} strokeWidth={3} />
           <Polyline points="-70,-12 -60,0 -70,12" fill="none" stroke={ec} strokeOpacity={0.5} strokeWidth={3} />
         </G>
 
         {chunks}
-        {s.center && alive && <Line x1={p.x} y1={p.y} x2={s.center.x} y2={s.center.y} stroke={accent} strokeOpacity={0.12} strokeWidth={1} strokeDasharray="2 6" />}
+        {s.center && alive && <Line x1={p.x} y1={p.y} x2={s.center.x} y2={s.center.y} stroke={accent} strokeOpacity={s.thrust > 0.1 ? 0.3 : 0.12} strokeWidth={1} strokeDasharray="2 6" />}
         {s.magnetT > 0 && <Circle cx={p.x} cy={p.y} r={MAGNET_R} fill="none" stroke="#FF4F6D" strokeOpacity={0.2} strokeWidth={1.5} strokeDasharray="6 8" />}
 
         {(s.mode === 'play' || s.mode === 'won') && !blink && (
-          <G transform={`translate(${p.x} ${p.y}) scale(${s.mode === 'won' ? Math.max(0.2, 1 - s.wonT * 1.2) : 1})`}>
+          <G transform={`translate(${p.x} ${p.y}) rotate(${Math.atan2(p.vy, p.vx) * 180 / Math.PI}) scale(${s.mode === 'won' ? Math.max(0.2, 1 - s.wonT * 1.2) : 1})`}>
             <Circle r={18} fill={`url(#${uid}skin)`} />
+            <Circle r={7 + Math.min(3, Math.hypot(p.vx, p.vy) / 120)} fill="none" stroke={skinGlow} strokeOpacity={0.22} strokeWidth={2} transform={`scale(${1 + Math.min(0.8, Math.hypot(p.vx, p.vy) / 500)} 0.72)`} />
             {s.thrust > 0.1 && (
               <>
                 <Line x1={0} y1={0} x2={-s.thrustDir.x * 26 * s.thrust} y2={-s.thrustDir.y * 26 * s.thrust} stroke={skinGlow} strokeWidth={4} strokeLinecap="round" strokeOpacity={0.8} />
