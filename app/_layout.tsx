@@ -1,19 +1,3 @@
-if (typeof document !== 'undefined' && !document.getElementById('genvibe-inspector')) {
-  var __gvInspector = document.createElement('script');
-  __gvInspector.id = 'genvibe-inspector';
-  __gvInspector.src = 'https://genvibe.pro/inspector-script.js?v=e2b-reload1';
-  document.head.appendChild(__gvInspector);
-}
-
-if (typeof document !== 'undefined' && String(console.error).indexOf('gvSvgOrigin') < 0) {
-  var __gvConsoleError = console.error;
-  console.error = function gvSvgOrigin() {
-    var __gvMsg = Array.prototype.join.call(arguments, ' ');
-    if (__gvMsg.indexOf('Invalid DOM property') >= 0 && __gvMsg.indexOf('transform-origin') >= 0) return;
-    return __gvConsoleError.apply(console, Array.prototype.slice.call(arguments));
-  };
-}
-
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { Stack } from 'expo-router';
@@ -24,6 +8,22 @@ import { useFonts, Exo2_500Medium, Exo2_600SemiBold, Exo2_700Bold, Exo2_800Extra
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { GameProvider } from '@/store/GameStore';
 import { C } from '@/constants/theme';
+
+if (typeof document !== 'undefined' && !document.getElementById('genvibe-inspector')) {
+  const inspector = document.createElement('script');
+  inspector.id = 'genvibe-inspector';
+  inspector.src = 'https://genvibe.pro/inspector-script.js?v=e2b-reload1';
+  document.head.appendChild(inspector);
+}
+
+if (typeof document !== 'undefined' && String(console.error).indexOf('gvSvgOrigin') < 0) {
+  const originalConsoleError = console.error;
+  console.error = function gvSvgOrigin(...args: unknown[]) {
+    const message = args.join(' ');
+    if (message.includes('Invalid DOM property') && message.includes('transform-origin')) return;
+    return originalConsoleError.apply(console, args);
+  };
+}
 
 export default function RootLayout() {
   useFrameworkReady();
