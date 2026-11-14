@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import Svg, { Circle, Line, Polygon } from 'react-native-svg';
-import { Check, Gem, Coins, Lock } from 'lucide-react-native';
+import { Check, Gem, Lock } from 'lucide-react-native';
 import { C, F } from '@/constants/theme';
 import { GlowButton, Panel, Screen } from '@/components/ui';
 import { ABILITY_LIST, CATS, CAT_LABEL, ITEMS, Item, LIFE_PRICES, SHIELD_START_PRICE, UPGRADE_PRICES, Cat } from '@/game/catalog';
