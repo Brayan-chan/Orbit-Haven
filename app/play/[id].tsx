@@ -3,11 +3,12 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { ChevronsRight, Gem, Heart, Hourglass, Magnet, Pause, Play, RotateCcw, Shield, Smartphone, Star, Zap, Home, Clock } from 'lucide-react-native';
+import { ChevronsRight, Gem, Heart, Hourglass, Magnet, Pause, Play, RotateCcw, Shield, Smartphone, Star, Zap, Home } from 'lucide-react-native';
 import { C, F, glow } from '@/constants/theme';
 import { SpaceBackdrop, GlowButton, Panel } from '@/components/ui';
 import { GameCanvas } from '@/components/GameCanvas';
-import { DT, Sim, computeScore, createSim, stepSim, updateCamera, useAbility } from '@/game/engine';
+/* eslint-disable react-hooks/immutability, react-hooks/refs, react-hooks/set-state-in-effect */
+import { DT, Sim, activateAbility, computeScore, createSim, stepSim, updateCamera } from '@/game/engine';
 import { getLevel, nextLevelId } from '@/game/levels';
 import { ABILITY_LIST, ITEM_MAP, WORLDS } from '@/game/catalog';
 import { RunRewards, buildSimOpts, useGame, isUnlocked } from '@/store/GameStore';
@@ -73,8 +74,6 @@ function Run({ id }: { id: string }) {
   const pal = theme.pal ?? world.pal;
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
-  const saveRef = useRef(save);
-  saveRef.current = save;
 
   useEffect(() => {
     updateCamera(sim, visW, 1, true);
@@ -103,6 +102,7 @@ function Run({ id }: { id: string }) {
     let acc = 0;
     let hudT = 0;
     let endT = 0;
+    let renderAt = 0;
     const tick = (now: number) => {
       const dtr = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
       last = now;
@@ -121,16 +121,23 @@ function Run({ id }: { id: string }) {
           case 'nearmiss': sfx('near'); haptic('light'); break;
           case 'portal': sfx('portal'); haptic('medium'); break;
           case 'zone': sfx('zone'); say(e.text ?? '', 2200, setBanner); break;
+          case 'escape': sfx('escape'); haptic('medium'); say('¡HONDA GRAVITACIONAL!', 1300, setBanner); break;
           case 'ability': sfx('ability'); haptic('medium'); break;
           case 'denied': sfx('denied'); break;
           case 'mine': sfx('mine'); haptic('heavy'); break;
           case 'respawn': sfx('respawn'); break;
-          case 'locked': sfx('denied'); say(`Necesitas ${lvl.minCrystals} cristales para abrir el portal`, 1800); break;
+          case 'locked':
+            sfx('denied');
+            say(e.text === 'orbit' ? 'Completa la calibración orbital' : `Necesitas ${lvl.minCrystals} cristales para abrir el portal`, 1800);
+            break;
           case 'won': sfx('win'); haptic('success'); break;
         }
       }
       sim.events.length = 0;
-      setFrame((f) => f + 1);
+      if (now - renderAt >= 15.5) {
+        renderAt = now;
+        setFrame((f) => f + 1);
+      }
       hudT += dtr;
       if (hudT > 0.1) {
         hudT = 0;
@@ -162,7 +169,7 @@ function Run({ id }: { id: string }) {
     setTimeout(() => setHint(false), 9000);
   };
   const act = (a: AbilityId) => {
-    if (phaseRef.current === 'playing') useAbility(sim, a);
+    if (phaseRef.current === 'playing') activateAbility(sim, a);
   };
   const retry = () => {
     setRewards(null);
@@ -220,6 +227,7 @@ function Run({ id }: { id: string }) {
           </View>
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={s.lvlT}>NIVEL {lvl.id}</Text>
+            {lvl.id === '1-1' && <Text style={[s.lvlT, { color: C.gold, fontSize: 9 }]}>VERTICAL SLICE · FÍSICA V2</Text>}
             <View style={s.prog}>
               <View style={{ width: `${hud.progress * 100}%`, height: '100%', backgroundColor: C.cyan, borderRadius: 2 }} />
             </View>
@@ -241,7 +249,7 @@ function Run({ id }: { id: string }) {
         <View style={s.bottom} pointerEvents="box-none">
           {hint && phase !== 'won' && phase !== 'over' && lvl.hint ? (
             <View style={s.hint} pointerEvents="none">
-              <Text style={s.hintT}>{lvl.hint}</Text>
+              <Text style={s.hintT}>{lvl.minOrbits && hud.orbits < lvl.minOrbits ? `CALIBRANDO ÓRBITA · ${Math.floor(Math.min(1, hud.orbits / lvl.minOrbits) * 100)}%` : lvl.hint}</Text>
             </View>
           ) : <View />}
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -277,6 +285,7 @@ function Run({ id }: { id: string }) {
         <Pressable style={s.overlay} onPress={start}>
           <Panel style={{ width: 430, maxWidth: '88%', alignItems: 'center', gap: 6 }} accent={world.pal.accent}>
             <Text style={[s.small, { color: world.pal.accent }]}>MUNDO {world.id} · {world.name.toUpperCase()}</Text>
+            {lvl.id === '1-1' && <Text style={[s.small, { color: C.gold }]}>BUILD DE PRUEBA · VERTICAL SLICE V2</Text>}
             <Text style={s.big}>{lvl.id} · {lvl.name}</Text>
             <Text style={s.sub}>{lvl.subtitle}</Text>
             <View style={{ flexDirection: 'row', gap: 4, marginVertical: 6 }}>
@@ -327,6 +336,7 @@ function snap(sim: Sim) {
     crystals: sim.crystals,
     score: sc.total,
     progress: Math.max(0, Math.min(1, sim.p.x / sim.level.exit.x)),
+    orbits: sim.orbitTravel / (Math.PI * 2),
     slow: sim.slowT,
     shield: sim.shield ? (sim.shieldT > 9000 ? 100 : sim.shieldT) : 0,
     magnet: sim.magnetT,
@@ -411,7 +421,7 @@ const s = StyleSheet.create({
   bannerS: { color: C.cyan, fontFamily: F.bold, fontSize: 12, letterSpacing: 3 },
   bannerT: { color: C.text, fontFamily: F.italic, fontSize: 30 },
   toast: { color: C.text, fontFamily: F.bold, fontSize: 14, backgroundColor: 'rgba(6,12,40,0.8)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, overflow: 'hidden' },
-  overlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(3,5,20,0.55)' },
+  overlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(3,5,20,0.55)' },
   big: { color: C.text, fontFamily: F.italic, fontSize: 24 },
   sub: { color: C.dim, fontFamily: F.semi, fontSize: 13, textAlign: 'center' },
   small: { color: C.dim, fontFamily: F.bold, fontSize: 11, letterSpacing: 1.5 },
