@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Defs, G, RadialGradient, Stop } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Backpack, ChartColumn, Play, Settings, ShoppingCart, Smartphone, Star, Trophy } from 'lucide-react-native';
+import { Backpack, ChartColumn, FlaskConical, Play, Settings, ShoppingCart, Smartphone, Star, Trophy } from 'lucide-react-native';
 import { C, F } from '@/constants/theme';
 import { Currency, GlowButton, SpaceBackdrop } from '@/components/ui';
 import { ALL_LEVELS } from '@/game/levels';
@@ -53,6 +53,7 @@ export default function Home() {
           </View>
           <View style={{ gap: 10, marginTop: 18 }}>
             <GlowButton variant="primary" label={save.stats.runs ? `Jugar · Nivel ${cur.id}` : 'Jugar'} icon={<Play size={20} color={C.text} fill={C.text} />} onPress={() => go('/worlds')} />
+            <GlowButton label="Laboratorio de físicas" icon={<FlaskConical size={19} color={C.cyan} />} onPress={() => go('/lab')} />
             <GlowButton label="Tienda" icon={<ShoppingCart size={19} color={C.cyan} />} onPress={() => go('/shop')} />
             <GlowButton label={claimable ? `Misiones · ${claimable} por reclamar` : 'Misiones'} icon={<Star size={19} color={C.gold} fill={C.gold} />} onPress={() => go('/missions')} />
             <GlowButton label="Logros" icon={<Trophy size={19} color={C.gold} />} onPress={() => go('/achievements')} />
