@@ -11,6 +11,7 @@ import type {
   WellKind,
   WellSpec,
 } from './types';
+import { orbitalControl } from './movement';
 
 /* ------------------------------------------------------------------ */
 /*  Simulación orbital pura (sin dependencias de React ni del render)  */
@@ -162,6 +163,7 @@ export interface Sim {
   timeScale: number;
   p: { x: number; y: number; vx: number; vy: number };
   holding: boolean;
+  steer: number;
   thrust: number;
   thrustDir: { x: number; y: number };
   center: RWell | null;
@@ -207,6 +209,10 @@ export interface Sim {
   stars: number;
   orbitTravel: number;
   lastOrbitAngle: number | null;
+  targetVy: number;
+  controlAy: number;
+  gravityAx: number;
+  gravityAy: number;
 }
 
 /* ------------------------------ utilidades ------------------------------ */
@@ -284,6 +290,7 @@ export function createSim(level: LevelSpec, opts: SimOpts): Sim {
     timeScale: 1,
     p: { ...sp },
     holding: false,
+    steer: 0,
     thrust: 0,
     thrustDir: { x: 1, y: 0 },
     center: null,
@@ -347,6 +354,10 @@ export function createSim(level: LevelSpec, opts: SimOpts): Sim {
     stars: 0,
     orbitTravel: 0,
     lastOrbitAngle: null,
+    targetVy: 0,
+    controlAy: 0,
+    gravityAx: 0,
+    gravityAy: 0,
   };
 }
 
@@ -581,6 +592,7 @@ function playerStep(s: Sim, dt: number) {
   const lvl = s.level;
   const previousCenter = s.center;
   const control = lvl.control;
+  const arcade = control?.mode === 'arcade';
   let ax = 0;
   let ay = 0;
   let best: RWell | null = null;
@@ -604,7 +616,9 @@ function playerStep(s: Sim, dt: number) {
       a *= k * k * (3 - 2 * k);
     }
     const sg = w.kind === 'inverse' ? -1 : 1;
-    if (sg > 0 && s.holding) {
+    if (arcade) {
+      a *= control?.gravityInfluence ?? 0.38;
+    } else if (sg > 0 && s.holding) {
       const gravityScale = control?.gravityWhileThrust ?? 0.82;
       a *= 1 - s.thrust * (1 - gravityScale);
     }
@@ -615,6 +629,8 @@ function playerStep(s: Sim, dt: number) {
       best = w;
     }
   }
+  s.gravityAx = ax;
+  s.gravityAy = ay;
 
   let scale = 1;
   let center = best;
@@ -646,7 +662,17 @@ function playerStep(s: Sim, dt: number) {
   s.thrust += (target - s.thrust) * Math.min(1, dt * (target ? 7 : 11));
   let tx: number;
   let ty: number;
-  if (center) {
+  if (arcade) {
+    tx = 0;
+    ty = -1;
+    const targetVy = s.holding ? -(control?.riseSpeed ?? 185) : (control?.fallSpeed ?? 145);
+    const response = control?.response ?? 7.5;
+    const limit = control?.maxControlAccel ?? 620;
+    const controlAy = Math.max(-limit, Math.min(limit, (targetVy - p.vy) * response));
+    s.targetVy = targetVy;
+    s.controlAy = controlAy;
+    ay += controlAy;
+  } else if (center) {
     const dx = p.x - center.x;
     const dy = p.y - center.y;
     const d = Math.hypot(dx, dy) || 1;
@@ -660,19 +686,14 @@ function playerStep(s: Sim, dt: number) {
   }
   s.thrustDir.x = tx;
   s.thrustDir.y = ty;
-  const T = (control?.thrust ?? THRUST) * s.thrust * scale;
-  ax += tx * T;
-  ay += ty * T;
-  if (center && s.thrust > 0.02) {
-    let qx = -ty;
-    let qy = tx;
-    if (p.vx * qx + p.vy * qy < 0) {
-      qx = -qx;
-      qy = -qy;
-    }
-    const tangent = (control?.tangentThrust ?? 45) * s.thrust;
-    ax += qx * tangent;
-    ay += qy * tangent;
+  if (!arcade && center) {
+    const force = orbitalControl({ px: p.x, py: p.y, vx: p.vx, vy: p.vy, cx: center.x, cy: center.y, thrust: s.thrust * scale, steer: 0, radialPower: control?.thrust ?? THRUST, tangentPower: control?.tangentThrust ?? 150, liftPower: control?.liftPower ?? 280 });
+    ax += force.ax;
+    ay += force.ay;
+  } else if (!arcade) {
+    const T = (control?.thrust ?? THRUST) * s.thrust * scale;
+    ax += tx * T;
+    ay += ty * T;
   }
 
   p.vx += ax * dt;
@@ -737,7 +758,8 @@ function playerStep(s: Sim, dt: number) {
       dy = p.y - c.y;
       d = Math.hypot(dx, dy);
     }
-    if (d < 15 + PR) {
+    const pickupRadius = lvl.world === 1 ? 23 : 15;
+    if (d < pickupRadius + PR) {
       c.taken = true;
       if (c.kind === 'crystal') {
         s.crystals += 1;

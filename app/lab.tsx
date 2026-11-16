@@ -6,6 +6,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import Svg, { Circle, Defs, G, Line, LinearGradient, Polygon, Polyline, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { ArrowLeft, RotateCcw } from 'lucide-react-native';
 import { C, F } from '@/constants/theme';
+import { orbitalControl } from '@/game/movement';
 
 type Mode = 'orbit' | 'spiral' | 'wave' | 'recovery';
 type Point = { x: number; y: number };
@@ -160,18 +161,11 @@ function step(s: LabState, mode: Mode, w: number, h: number, dt: number) {
     if (s.holding) grav *= 0.62;
     let ax = dx / r * grav;
     let ay = dy / r * grav;
-    const ox = -dx / r;
-    const oy = -dy / r;
-    const tx0 = -oy;
-    const ty0 = ox;
-    const sign = s.p.vx * tx0 + s.p.vy * ty0 >= 0 ? 1 : -1;
     if (s.holding) {
       const radial = mode === 'spiral' ? 430 : 390;
-      ax += ox * radial;
-      ay += oy * radial;
-      const tangential = (90 + s.steer * 310) * sign;
-      ax += tx0 * tangential;
-      ay += ty0 * tangential;
+      const force = orbitalControl({ px: s.p.x, py: s.p.y, vx: s.p.vx, vy: s.p.vy, cx, cy, thrust: 1, steer: s.steer, radialPower: radial, tangentPower: 310 });
+      ax += force.ax;
+      ay += force.ay;
     } else if (Math.abs(s.steer) > 0.02) {
       s.steer *= Math.pow(0.25, dt);
     }

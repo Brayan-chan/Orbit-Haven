@@ -159,6 +159,7 @@ function Run({ id }: { id: string }) {
 
   const hold = (on: boolean) => {
     sim.holding = on;
+    if (!on) sim.steer = 0;
     setThrust(on && phaseRef.current === 'playing');
     if (on) setHint(false);
   };
@@ -244,6 +245,7 @@ function Run({ id }: { id: string }) {
           {hud.shield >= 100 && <Timer icon={<Shield size={14} color="#B26BFF" />} t={-1} />}
           {hud.magnet > 0 && <Timer icon={<Magnet size={14} color="#FF4F6D" />} t={hud.magnet} />}
           {hud.oob && <Text style={s.warn}>FUERA DE ZONA · REGRESA</Text>}
+          {lvl.world === 1 && lvl.index < 3 && <Text style={s.debug}>VX {hud.vx} · VY {hud.vy} → {hud.targetVy} · CTRL {hud.controlAy} · G {hud.gravity}</Text>}
         </View>
         <View style={{ flex: 1 }} pointerEvents="none" />
         <View style={s.bottom} pointerEvents="box-none">
@@ -337,6 +339,11 @@ function snap(sim: Sim) {
     score: sc.total,
     progress: Math.max(0, Math.min(1, sim.p.x / sim.level.exit.x)),
     orbits: sim.orbitTravel / (Math.PI * 2),
+    vx: Math.round(sim.p.vx),
+    vy: Math.round(sim.p.vy),
+    targetVy: Math.round(sim.targetVy),
+    controlAy: Math.round(sim.controlAy),
+    gravity: Math.round(Math.hypot(sim.gravityAx, sim.gravityAy)),
     slow: sim.slowT,
     shield: sim.shield ? (sim.shieldT > 9000 ? 100 : sim.shieldT) : 0,
     magnet: sim.magnetT,
@@ -411,6 +418,7 @@ const s = StyleSheet.create({
   prog: { width: '70%', maxWidth: 260, height: 4, borderRadius: 2, backgroundColor: 'rgba(143,163,214,0.25)', marginTop: 4, overflow: 'hidden' },
   timer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, height: 30, borderRadius: 10, backgroundColor: 'rgba(6,12,40,0.7)', borderWidth: 1, borderColor: C.lineSoft },
   warn: { color: C.red, fontFamily: F.black, fontSize: 13, letterSpacing: 1 },
+  debug: { color: C.dim, fontFamily: F.semi, fontSize: 10, backgroundColor: 'rgba(3,6,21,0.72)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   bottom: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
   hint: { flexShrink: 1, maxWidth: 380, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 14, backgroundColor: 'rgba(6,12,40,0.78)', borderWidth: 1, borderColor: C.lineSoft },
   hintT: { color: C.text, fontFamily: F.semi, fontSize: 13 },

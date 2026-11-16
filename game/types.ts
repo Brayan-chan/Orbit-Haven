@@ -88,9 +88,16 @@ export interface LevelSpec {
   minCrystals: number;
   minOrbits?: number;
   control?: {
+    mode?: 'orbital' | 'arcade';
     thrust?: number;
     gravityWhileThrust?: number;
     tangentThrust?: number;
+    liftPower?: number;
+    gravityInfluence?: number;
+    riseSpeed?: number;
+    fallSpeed?: number;
+    response?: number;
+    maxControlAccel?: number;
   };
   par: number;
 }
